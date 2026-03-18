@@ -4,9 +4,13 @@ import matplotlib.pyplot as plt
 import joblib
 import os
 
-# ----------- Load Saved Model -----------
+# ___________Loading the models 
+# here dataset is loaded for ploting its not actually 
+# required for prediction purpose 
+# just to plot the predicted data in the graph and checking!!!
+
 MODEL_PATH   = "model/rf_model.pkl"
-DATASET_PATH = "4port_dataset_1000.csv"
+DATASET_PATH = "4port_dataset_500.csv"   
 
 if not os.path.exists(MODEL_PATH):
     print("=" * 50)
@@ -14,25 +18,17 @@ if not os.path.exists(MODEL_PATH):
     print("  Please run 'train.py' first.")
     print("=" * 50)
     exit()
-
 model = joblib.load(MODEL_PATH)
 print("=" * 50)
 print("   Model loaded from 'model/rf_model.pkl'")
 print("=" * 50)
-
 PORTS = ['port1', 'port2', 'port3', 'port4']
-
-# ----------- Load training data for reference plots -----------
 df_train = None
 if os.path.exists(DATASET_PATH):
     df_train = pd.read_csv(DATASET_PATH)
     df_train.columns = df_train.columns.str.strip()
-
-
-# ============================================================
-#                   Helper Functions
-# ============================================================
-
+# ___________Predicting function
+# here we pass the r2 value to this function and it returns predicted output
 def predict_ports(r2_val):
     """Run model prediction and display results."""
     user_X     = np.array([[r2_val]])
@@ -50,7 +46,8 @@ def predict_ports(r2_val):
     print("=" * 50)
     return prediction
 
-
+# ________Ploting the predict result
+# not actually required this....
 def plot_prediction(r2_val, prediction):
     """Plot predicted values against training data."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 9))
@@ -58,18 +55,23 @@ def plot_prediction(r2_val, prediction):
 
     for ax, port, pred_val in zip(axes.flatten(), PORTS, prediction):
         if df_train is not None:
-            ax.plot(df_train[port].values, color='steelblue',
-                    alpha=0.4, linewidth=1, label='Training data')
+            # Sort by r2 for a clean line plot
+            df_sorted = df_train.sort_values('r2')
+            ax.plot(df_sorted['r2'].values, df_sorted[port].values,
+                    color='steelblue', alpha=0.6, linewidth=1.5,
+                    label='Training data')
+            ax.axvline(r2_val, color='green', linewidth=1.5,
+                       linestyle=':', label=f'r2={r2_val}')
         ax.axhline(pred_val, color='red', linewidth=2,
                    linestyle='--', label=f'Predicted: {pred_val:.4f}')
         ax.set_title(port)
-        ax.set_xlabel("Sample Index")
+        ax.set_xlabel("r2")
         ax.set_ylabel("Value")
         ax.legend()
         ax.grid(True, alpha=0.4)
 
     plt.tight_layout()
-    save_path = "model/user_prediction.png"
+    save_path = "plots/user_prediction.png"
     plt.savefig(save_path, dpi=150)
     plt.show()
     print(f"   Plot saved to '{save_path}'")
@@ -88,6 +90,10 @@ def predict_from_csv(csv_path):
         print("   CSV must contain an 'r2' column.")
         return
 
+    out_of_range = batch_df[(batch_df['r2'] < 0.10) | (batch_df['r2'] > 0.29)]
+    if len(out_of_range) > 0:
+        print(f"\n   Warning: {len(out_of_range)} rows have r2 outside"
+              f" trained range [0.10 – 0.29]. Predictions may be inaccurate.")
     X_batch = batch_df[['r2']].values
     preds   = model.predict(X_batch)
 
@@ -99,12 +105,6 @@ def predict_from_csv(csv_path):
 
     print(f"\n   Batch predictions saved to '{save_path}'")
     print(output_df.to_string(index=False))
-
-
-# ============================================================
-#                  Interactive Prediction Loop
-# ============================================================
-
 print("\n  Options:")
 print("    [1] Single prediction  (enter r2 manually)")
 print("    [2] Batch prediction   (load a CSV file)")
@@ -113,8 +113,6 @@ print("    [3] Exit")
 while True:
     print()
     choice = input("Select option (1 / 2 / 3): ").strip()
-
-    # ----------- Single Prediction -----------
     if choice == '1':
         while True:
             r2_input = input("\n  Enter r2 value (or 'back' to return): ").strip()
@@ -125,26 +123,21 @@ while True:
             except ValueError:
                 print("  Invalid value. Please enter a number.")
                 continue
-
+            if not (0.10 <= r2_val <= 0.29):
+                print(f"\n  Warning: r2={r2_val} is outside the trained range"
+                      f" [0.10 – 0.29]. Prediction may be inaccurate.")
             prediction = predict_ports(r2_val)
-
             show_plot = input("\n  Show prediction plot? (y/n): ").strip().lower()
             if show_plot == 'y':
                 plot_prediction(r2_val, prediction)
-
             again = input("\n  Predict again? (y/n): ").strip().lower()
             if again != 'y':
                 break
-
-    # ----------- Batch Prediction -----------
     elif choice == '2':
         csv_path = input("\n  Enter path to CSV file: ").strip()
         predict_from_csv(csv_path)
-
-    # ----------- Exit -----------
     elif choice == '3':
         print("\n  Goodbye!")
         break
-
     else:
-        print("  ⚠  Invalid choice. Please enter 1, 2, or 3.")
+        print("  Invalid choice. Please enter 1, 2, or 3.")
