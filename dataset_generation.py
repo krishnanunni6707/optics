@@ -26,7 +26,7 @@ cs_port4 = CubicSpline(df_orig['r2'], df_orig['port4'])
 
 # ----------- Generate 500 rows -----------
 np.random.seed(42)
-n       = 500
+n       = 1000
 r2_vals = np.random.uniform(0.10, 0.29, n)
 noise   = 0.008
 
